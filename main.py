@@ -11,7 +11,7 @@ import argparse
 import sys
 from datetime import datetime
 
-from docfiling import alerts, db, filer
+from docfiling import alerts, db, filer, service
 
 
 def cmd_process(args):
@@ -38,12 +38,10 @@ def cmd_review(args):
 
 def cmd_confirm(args):
     expiry = datetime.strptime(args.expiry, "%Y-%m-%d").date() if args.expiry else None
-    with db.connection() as conn:
-        db.confirm_document(conn, args.id, expiry)
-        doc = db.get_document(conn, args.id)
-        if doc is None:
-            sys.exit(f"No document with id {args.id}")
-        retired = db.supersede_older(conn, doc)
+    try:
+        retired = service.confirm(args.id, expiry)
+    except LookupError as error:
+        sys.exit(str(error))
     print(f"Document #{args.id} confirmed. Superseded {retired} older document(s).")
 
 

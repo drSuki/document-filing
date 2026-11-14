@@ -46,6 +46,19 @@ python main.py alerts               # show (or email) anything whose alert date 
 
 Confirming a document also retires older documents of the same type, property, company and counterparty that expire earlier (they are marked superseded and stop alerting). This happens only on confirmation, so a misread date cannot retire a good record.
 
+## Documents page in customer-contract (Contract Creator)
+
+The Django app has a **Documents** button in its admin "Custom Actions" row. It opens a staff-only page to preview or run the inbox, see alerts that are due, and confirm (with a corrected expiry date) or reject documents awaiting review. It uses this project's `docfiling.service` module, so the filing logic stays in this repository.
+
+On the server running customer-contract:
+
+1. Put this project in a folder on that server and give it its own `.env`. Its dependencies (PyMuPDF, PyMySQL, pytesseract) are already listed in customer-contract's `requirements.in`, so install them into the Django environment.
+2. Add `DOCFILING_HOME=C:\Projects\document-filing` (the folder holding `docfiling/`) to customer-contract's `.env`.
+3. Run `python manage.py migrate`, which creates the permission `app.can_manage_documents`.
+4. In the Django admin, grant **Can manage filed documents** to the users or group who should see the button. The user must also be staff.
+
+The tool keeps its own database settings (`DB_*` in this project's `.env`), so the `document_filing` database stays separate from the Django and Sage databases.
+
 ## Scheduling
 
 Run `process` and `alerts` from Windows Task Scheduler or cron, for example `process` every 15 minutes and `alerts` each weekday at 08:00.
