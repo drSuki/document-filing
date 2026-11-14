@@ -1,15 +1,13 @@
 """Classification: document type, expiry date, property, company, counterparty.
 
-Everything here is rule-driven (rules.json and matching.json) and returns plain
-values, so it can be tested without a database.
+Everything here is driven by the rules and matching dictionaries passed in (loaded
+from the database by params.py) and returns plain values, so it can be tested
+without a database.
 """
 
-import json
 import re
 from datetime import date
 from typing import NamedTuple, Optional
-
-from .config import settings
 
 UNCLASSIFIED = "Unclassified"
 
@@ -40,11 +38,6 @@ class Analysis(NamedTuple):
     property_name: Optional[str]
     company_code: Optional[str]
     counterparty: Optional[str]
-
-
-def _load(path):
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
 
 
 # ---------------------------------------------------------------------------
@@ -112,15 +105,15 @@ def find_document_date(text: str, rules: dict) -> Optional[date]:
 # ---------------------------------------------------------------------------
 # Type scoring
 # ---------------------------------------------------------------------------
-def classify_type(text: str, rules: dict, min_score=None, min_margin=None) -> Classification:
-    min_score = settings.min_score if min_score is None else min_score
-    min_margin = settings.min_margin if min_margin is None else min_margin
+def classify_type(text: str, rules: dict, min_score: float, min_margin: float) -> Classification:
     lowered = text.lower()
 
     scores = {}
     for type_name, phrases in rules["types"].items():
         scores[type_name] = sum(w for phrase, w in phrases.items() if phrase in lowered)
 
+    if not scores:
+        return Classification(UNCLASSIFIED, 0, 0)
     ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
     best_name, best = ranked[0]
     runner_up = ranked[1][1] if len(ranked) > 1 else 0
@@ -164,12 +157,10 @@ def match_counterparty(text: str, matching: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-def analyse(text: str, filename: str = "", rules=None, matching=None) -> Analysis:
-    rules = rules or _load(settings.rules_file)
-    matching = matching or _load(settings.matching_file)
-
+def analyse(text: str, filename: str, rules: dict, matching: dict,
+            min_score: float, min_margin: float) -> Analysis:
     searchable = f"{filename}\n{text}"
-    result = classify_type(searchable, rules)
+    result = classify_type(searchable, rules, min_score, min_margin)
     property_id, property_name = match_property(text, matching)
 
     return Analysis(

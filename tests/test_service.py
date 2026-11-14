@@ -11,6 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from docfiling import db, service
 
 
+STUBBED = ("connection", "get_document", "confirm_document", "reject_document",
+           "supersede_older", "list_pending", "property_names", "load_settings")
+
+
 class FakeDb:
     def __init__(self):
         self.docs = {
@@ -20,6 +24,8 @@ class FakeDb:
         self.calls = []
 
     def install(self):
+        self.originals = {name: getattr(db, name) for name in STUBBED}
+
         @contextlib.contextmanager
         def fake_connection():
             yield object()
@@ -32,8 +38,10 @@ class FakeDb:
         db.list_pending = lambda conn: [
             {"id": 1, "document_type": "Certificate", "classification_score": 12,
              "expiry_date": date(2027, 9, 11), "property_id": 2, "counterparty": None,
-             "nas_path": "x.pdf"},
+             "relative_path": "Certificates/Sample Cottage/x.pdf"},
         ]
+        db.property_names = lambda conn: {2: "Sample Cottage"}
+        db.load_settings = lambda conn: {"nas_root": "/mnt/nas"}
 
 
 class TestService(unittest.TestCase):
@@ -41,12 +49,15 @@ class TestService(unittest.TestCase):
         self.fake = FakeDb()
         self.fake.install()
 
-    def test_property_names_come_from_matching_file(self):
-        self.assertEqual(service.property_names()[1], "Example House")
+    def tearDown(self):
+        for name, original in self.fake.originals.items():
+            setattr(db, name, original)
 
     def test_pending_documents_get_property_name(self):
         rows = service.pending_documents()
         self.assertEqual(rows[0]["property_name"], "Sample Cottage")
+        self.assertTrue(rows[0]["nas_path"].endswith("Certificates/Sample Cottage/x.pdf"))
+        self.assertTrue(rows[0]["nas_path"].startswith("/mnt/nas"))
 
     def test_confirm_returns_superseded_count(self):
         self.assertEqual(service.confirm(1, date(2027, 9, 30)), 3)

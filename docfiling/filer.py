@@ -4,9 +4,8 @@ import re
 import shutil
 from pathlib import Path
 
-from . import db
+from . import db, params as params_module
 from .classify import UNCLASSIFIED, analyse
-from .config import settings
 from .extract import extract_text, file_sha256
 
 REVIEW_FOLDER = "Needs Review"
@@ -36,17 +35,22 @@ def target_folder(type_row: dict, property_name, nas_root: Path) -> Path:
     return base / _safe(property_name or "Unmatched")
 
 
-def process_inbox(dry_run: bool = False, inbox: Path = None, nas_root: Path = None):
-    inbox = inbox or settings.inbox_dir
-    nas_root = nas_root or settings.nas_root
+def process_inbox(dry_run: bool = False):
     results = []
 
-    pdfs = sorted(
-        p for p in inbox.rglob("*")
-        if p.is_file() and p.suffix.lower() == ".pdf" and DUPLICATES_FOLDER not in p.parts
-    )
-
     with db.connection() as conn:
+        params = params_module.build_params(conn)
+        params_module.require_locations(params)
+        inbox, nas_root = params.inbox_dir, params.nas_root
+
+        if not inbox.is_dir():
+            raise params_module.SettingsError(f"The inbox folder does not exist: {inbox}")
+
+        pdfs = sorted(
+            p for p in inbox.rglob("*")
+            if p.is_file() and p.suffix.lower() == ".pdf" and DUPLICATES_FOLDER not in p.parts
+        )
+
         for pdf in pdfs:
             file_hash = file_sha256(pdf)
 
@@ -58,17 +62,21 @@ def process_inbox(dry_run: bool = False, inbox: Path = None, nas_root: Path = No
                     shutil.move(str(pdf), str(_unique_path(dup_dir / pdf.name)))
                 continue
 
-            extraction = extract_text(pdf)
-            analysis = analyse(extraction.text, pdf.name)
+            extraction = extract_text(pdf, params.tesseract_cmd)
+            analysis = analyse(
+                extraction.text, pdf.name, params.rules, params.matching,
+                params.min_score, params.min_margin,
+            )
             type_row = db.get_type(conn, analysis.document_type)
             folder = target_folder(type_row, analysis.property_name, nas_root)
             destination = _unique_path(folder / _safe(pdf.name))
+            relative = destination.relative_to(nas_root).as_posix()
 
             expiry = analysis.expiry_date if type_row["has_expiry"] else None
             summary = (
                 f"{analysis.document_type} (score {analysis.score:g}), "
                 f"property={analysis.property_name or '-'}, expiry={expiry or '-'} "
-                f"-> {destination}"
+                f"-> {relative}"
             )
 
             if dry_run:
@@ -83,7 +91,7 @@ def process_inbox(dry_run: bool = False, inbox: Path = None, nas_root: Path = No
 
             db.insert_document(
                 conn,
-                nas_path=str(destination),
+                relative_path=relative,
                 original_filename=pdf.name,
                 file_hash=file_hash,
                 page_count=extraction.page_count,

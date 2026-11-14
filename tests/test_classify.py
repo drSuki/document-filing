@@ -10,8 +10,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pymupdf
 
-from docfiling.classify import UNCLASSIFIED, analyse, parse_date
+from docfiling.classify import UNCLASSIFIED, analyse as _analyse, parse_date
 from docfiling.extract import extract_text, file_sha256
+from docfiling.params import load_seed_matching, load_seed_rules
+
+RULES = load_seed_rules()
+MATCHING = load_seed_matching()
+
+
+def analyse(text, filename=""):
+    """Analyse with the seed rules and the default thresholds (score 4, margin 2)."""
+    return _analyse(text, filename, RULES, MATCHING, 4, 2)
+
 
 SAMPLES = {
     "Insurance": (

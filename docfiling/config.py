@@ -1,4 +1,8 @@
-"""Settings, read from environment variables or a .env file in the project root."""
+"""Bootstrap settings only: how to reach the database, and the SMTP password.
+
+Everything else (locations, thresholds, classification phrases, property
+matching) is held in the database; see params.py.
+"""
 
 import os
 from dataclasses import dataclass
@@ -30,23 +34,12 @@ class Settings:
     db_password: str = os.environ.get("DB_PASSWORD", "")
     db_name: str = os.environ.get("DB_NAME", "document_filing")
 
-    inbox_dir: Path = Path(os.environ.get("INBOX_DIR", "./inbox"))
-    nas_root: Path = Path(os.environ.get("NAS_ROOT", "./nas"))
-
-    min_score: float = float(os.environ.get("MIN_SCORE", "4"))
-    min_margin: float = float(os.environ.get("MIN_MARGIN", "2"))
-
-    tesseract_cmd: str = os.environ.get("TESSERACT_CMD", "")
-
-    smtp_host: str = os.environ.get("SMTP_HOST", "")
-    smtp_port: int = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user: str = os.environ.get("SMTP_USER", "")
+    # Kept out of the database on purpose: a password in a table can be shown on a page.
     smtp_password: str = os.environ.get("SMTP_PASSWORD", "")
-    alert_from: str = os.environ.get("ALERT_FROM", "")
-    alert_to: str = os.environ.get("ALERT_TO", "")
 
-    rules_file: Path = PROJECT_ROOT / "rules.json"
-    matching_file: Path = PROJECT_ROOT / "matching.json"
+    # Seed files used once by `main.py seed` to load the first set of rules.
+    seed_rules_file: Path = PROJECT_ROOT / "seed" / "rules.json"
+    seed_matching_file: Path = PROJECT_ROOT / "seed" / "matching.json"
 
 
 settings = Settings()

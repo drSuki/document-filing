@@ -2,6 +2,9 @@
 -- Document filing tool: MySQL schema
 -- Purpose : Record every PDF filed on the NAS, its classification, its expiry
 --           date and the alert date derived from its document type.
+--           All tool parameters (locations, thresholds, classification phrases,
+--           property matching) live in this database, not in files.
+-- Only the database connection details (and the SMTP password) stay in .env.
 -- ---------------------------------------------------------------------------
 
 CREATE DATABASE IF NOT EXISTS document_filing
@@ -11,7 +14,30 @@ CREATE DATABASE IF NOT EXISTS document_filing
 USE document_filing;
 
 -- ---------------------------------------------------------------------------
--- 1. Document types, with the alert lead time held as data, not code
+-- 1. Settings: one row per scalar parameter
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS settings (
+    setting_key   VARCHAR(50)  NOT NULL,
+    setting_value VARCHAR(500) NOT NULL DEFAULT '',
+    description   VARCHAR(255) NULL,
+    PRIMARY KEY (setting_key)
+) ENGINE=InnoDB;
+
+-- INSERT IGNORE: re-running this script never overwrites a value you have changed.
+INSERT IGNORE INTO settings (setting_key, setting_value, description) VALUES
+    ('nas_root',       '',  'Root folder on the NAS where filed documents are stored'),
+    ('inbox_dir',      '',  'Folder where new PDFs are dropped for processing'),
+    ('min_score',      '4', 'Minimum keyword score for a document type to be accepted'),
+    ('min_margin',     '2', 'Minimum lead over the runner-up type, otherwise sent to review'),
+    ('tesseract_cmd',  '',  'Full path to tesseract.exe if it is not on the PATH (optional)'),
+    ('smtp_host',      '',  'SMTP server for alert emails; leave blank to print instead'),
+    ('smtp_port',      '587', 'SMTP port'),
+    ('smtp_user',      '',  'SMTP user name (the password stays in .env as SMTP_PASSWORD)'),
+    ('alert_from',     '',  'From address for alert emails'),
+    ('alert_to',       '',  'Recipient of alert emails');
+
+-- ---------------------------------------------------------------------------
+-- 2. Document types, with the alert lead time held as data, not code
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS document_types (
     id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -33,13 +59,91 @@ INSERT INTO document_types (name, has_expiry, alert_lead_months, nas_subfolder) 
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ---------------------------------------------------------------------------
--- 2. Documents: one row per file held on the NAS
+-- 3. Classification phrases: each phrase found in a document adds its weight
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS classification_phrases (
+    id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    document_type_id INT UNSIGNED NOT NULL,
+    phrase           VARCHAR(100) NOT NULL,
+    weight           DECIMAL(5,2) NOT NULL DEFAULT 1,
+    active           TINYINT(1)   NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_class_phrase (document_type_id, phrase),
+    CONSTRAINT fk_class_phrase_type
+        FOREIGN KEY (document_type_id) REFERENCES document_types (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- 4. Date phrases: where to look for an expiry date, and for an issue date
+--    pick = 'first' or 'last' date found after the phrase
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS expiry_phrases (
+    id       INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    phrase   VARCHAR(100) NOT NULL,
+    pick     ENUM('first','last') NOT NULL DEFAULT 'first',
+    priority SMALLINT NOT NULL DEFAULT 100,        -- lower is tried first
+    active   TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_expiry_phrase (phrase)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS issue_date_phrases (
+    id       INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    phrase   VARCHAR(100) NOT NULL,
+    priority SMALLINT NOT NULL DEFAULT 100,
+    active   TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_issue_phrase (phrase)
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- 5. Matching: properties, companies and counterparties
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS properties (
+    id     INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name   VARCHAR(150) NOT NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_properties_name (name)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS property_keywords (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    property_id INT UNSIGNED NOT NULL,
+    keyword     VARCHAR(150) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_property_keyword (property_id, keyword),
+    CONSTRAINT fk_property_keyword
+        FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS company_keywords (
+    id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    company_code VARCHAR(10)  NOT NULL,            -- e.g. JPP, TLD, REN
+    keyword      VARCHAR(150) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_company_keyword (company_code, keyword)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS counterparties (
+    id     INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name   VARCHAR(150) NOT NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_counterparties_name (name)
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- 6. Documents: one row per file held on the NAS.
+--    relative_path is relative to the nas_root setting, so moving or remounting
+--    the NAS means changing one setting, not every row.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS documents (
     id                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 
     -- File identity
-    nas_path              VARCHAR(500) NOT NULL,
+    relative_path         VARCHAR(500) NOT NULL,
     original_filename     VARCHAR(255) NOT NULL,
     file_hash             CHAR(64)     NOT NULL,   -- SHA-256, catches duplicates
     page_count            SMALLINT UNSIGNED NULL,
@@ -48,7 +152,7 @@ CREATE TABLE IF NOT EXISTS documents (
     -- Classification
     document_type_id      INT UNSIGNED NOT NULL,
     classification_score  DECIMAL(5,2) NULL,       -- keyword score, for review
-    property_id           INT UNSIGNED NULL,       -- link to your existing property table
+    property_id           INT UNSIGNED NULL,
     company_code          VARCHAR(10)  NULL,       -- e.g. JPP, TLD, REN
     counterparty          VARCHAR(200) NULL,       -- supplier, insurer, contractor
 
@@ -79,19 +183,21 @@ CREATE TABLE IF NOT EXISTS documents (
 
     CONSTRAINT fk_documents_type
         FOREIGN KEY (document_type_id) REFERENCES document_types (id),
+    CONSTRAINT fk_documents_property
+        FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE SET NULL,
     CONSTRAINT fk_documents_superseded
         FOREIGN KEY (superseded_by_id) REFERENCES documents (id)
         ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------------
--- 3. Alert view: the alert date is calculated, so it never goes stale when a
+-- 7. Alert view: the alert date is calculated, so it never goes stale when a
 --    lead time is changed. A per-document override takes precedence.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_document_alerts AS
 SELECT
     d.id,
-    d.nas_path,
+    d.relative_path,
     t.name                                   AS document_type,
     d.property_id,
     d.company_code,
