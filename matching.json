@@ -1,0 +1,13 @@
+{
+  "_note": "EXAMPLE VALUES. Replace with your own. property id must match the id used in your property table. Keywords are matched case-insensitively against the document text.",
+  "properties": [
+    {"id": 1, "name": "Example House", "keywords": ["1 example street", "example house"]},
+    {"id": 2, "name": "Sample Cottage", "keywords": ["2 sample lane", "sample cottage"]}
+  ],
+  "companies": {
+    "JPP": ["jarvs property partnership"],
+    "TLD": [],
+    "REN": []
+  },
+  "counterparties": ["Aviva", "Direct Line", "Zurich", "Allianz", "British Gas"]
+}

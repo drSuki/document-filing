@@ -1,0 +1,84 @@
+{
+  "min_score_note": "Each phrase present in the text adds its weight once. Edit freely.",
+  "types": {
+    "Insurance": {
+      "certificate of insurance": 5,
+      "policy schedule": 5,
+      "period of insurance": 4,
+      "buildings insurance": 3,
+      "landlord insurance": 3,
+      "public liability": 3,
+      "employers' liability": 3,
+      "sum insured": 3,
+      "policy number": 3,
+      "insurer": 2,
+      "premium": 1,
+      "excess": 1
+    },
+    "Certificate": {
+      "landlord gas safety record": 6,
+      "electrical installation condition report": 6,
+      "energy performance certificate": 6,
+      "gas safety": 5,
+      "eicr": 5,
+      "legionella": 4,
+      "fire risk assessment": 4,
+      "certificate of compliance": 4,
+      "certificate number": 3,
+      "pat test": 3,
+      "certificate": 2,
+      "inspection": 1
+    },
+    "Contract": {
+      "tenancy agreement": 6,
+      "assured shorthold": 5,
+      "service agreement": 4,
+      "maintenance contract": 4,
+      "this agreement": 3,
+      "hereby agree": 2,
+      "agreement": 2,
+      "contract": 2,
+      "signed by": 1,
+      "the parties": 1
+    },
+    "Invoice": {
+      "invoice number": 3,
+      "invoice date": 3,
+      "invoice": 4,
+      "total due": 2,
+      "amount due": 2,
+      "vat registration": 2,
+      "payment terms": 1,
+      "vat": 1
+    },
+    "Statement": {
+      "statement of account": 6,
+      "bank statement": 5,
+      "account statement": 5,
+      "statement date": 3,
+      "opening balance": 3,
+      "closing balance": 3,
+      "balance brought forward": 3,
+      "sort code": 2
+    }
+  },
+  "expiry_keywords": [
+    {"phrase": "period of insurance", "pick": "last"},
+    {"phrase": "policy period", "pick": "last"},
+    {"phrase": "expiry date", "pick": "first"},
+    {"phrase": "expires on", "pick": "first"},
+    {"phrase": "expires", "pick": "first"},
+    {"phrase": "valid until", "pick": "first"},
+    {"phrase": "valid to", "pick": "first"},
+    {"phrase": "valid through", "pick": "first"},
+    {"phrase": "next inspection due", "pick": "first"},
+    {"phrase": "next inspection date", "pick": "first"},
+    {"phrase": "renewal date", "pick": "first"},
+    {"phrase": "end date", "pick": "first"},
+    {"phrase": "ending on", "pick": "first"}
+  ],
+  "issue_keywords": [
+    "date of issue", "issued", "issue date", "invoice date",
+    "inspection date", "date of inspection", "dated", "statement date"
+  ]
+}
