@@ -10,7 +10,7 @@ Reads PDFs dropped into an inbox folder, works out what each one is, files it in
 4. **Expiry**: an expiry date is read from phrases such as "expiry date", "valid until" or "period of insurance".
 5. **File**: the PDF is copied to `NAS_ROOT/<Type>/<Property>/`, verified by hash, recorded in the database, and only then removed from the inbox.
 6. **Review**: every expiry date is stored as *unconfirmed*. Unconfirmed dates never raise alerts until you confirm them.
-7. **Alert**: the alert date is the expiry date minus the lead time for that document type (contract 3 months, certificate 1 month, insurance 2 months as a placeholder), or a per-document override.
+7. **Alert**: the alert date is the expiry date minus the lead time for that document type (contracts 3 months; certificates and insurance 1 month; invoices and statements have no expiry), or a per-document override.
 
 ## Setup
 

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS document_types (
 INSERT INTO document_types (name, has_expiry, alert_lead_months, nas_subfolder) VALUES
     ('Contract',    1, 3,    'Contracts'),
     ('Certificate', 1, 1,    'Certificates'),
-    ('Insurance',   1, 2,    'Insurance'),     -- lead time is a placeholder: please confirm
+    ('Insurance',   1, 1,    'Insurance'),
     ('Invoice',     0, NULL, 'Invoices'),
     ('Statement',   0, NULL, 'Statements'),
     ('Unclassified',0, NULL, 'Needs Review')
