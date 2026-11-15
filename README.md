@@ -1,3 +1,8 @@
+> **Moved.** This tool is now a Django app inside the `customer-contract` repository
+> (the `documents` folder), with its own `document_filing` database, admin screens and
+> `manage.py` commands. This repository is kept for reference and is no longer developed.
+> See `documents/README.md` in `customer-contract`.
+
 # Document Filing Tool
 
 Reads PDFs dropped into an inbox folder, works out what each one is, files it into the right folder on the NAS, records it in MySQL, and alerts you before documents expire.
